@@ -1,0 +1,1043 @@
+*&---------------------------------------------------------------------*
+*& Report ZMANE_PERS
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zcontrol_cotizacion.
+
+INCLUDE zcontrol_cotizacion_top.
+INCLUDE zcontrol_cotizacion_s01.
+INCLUDE zcontrol_cotizacion_f01.
+INCLUDE zcontrol_coti_pbo.
+INCLUDE zcontrol_coti_pai.
+INCLUDE zcontrol_cotizacion_event.
+
+----------------------------------------------
+Aqui se muestra el contenido de cada INCLUDE.
+----------------------------------------------
+
+*&---------------------------------------------------------------------*
+*& Include          ZCONTROL_COTIZACION_TOP
+*&---------------------------------------------------------------------*
+
+
+TYPES: BEGIN OF tys_alv,
+         id                TYPE ztpers_asa-id,
+         cedula            TYPE ztpers_asa-cedula,
+         nombres           TYPE ztpers_asa-nombres,
+         apellidos         TYPE ztpers_asa-apellidos,
+         telefono          TYPE ztpers_asa-telefono,
+         sociedad          TYPE ztpers_asa-sociedad,
+         semanas_cotizadas TYPE ztpers_asa-semanas_cotizadas,
+         valor_semana      TYPE ztpers_asa-valor_semana,
+         fecha_nacimiento  TYPE ztpers_asa-fecha_nacimiento,
+         genero            TYPE ztpers_asa-genero,
+       END OF tys_alv,
+
+       BEGIN OF tys_eli,
+         nombres   TYPE ztpers_asa-nombres,
+         apellidos TYPE ztpers_asa-apellidos,
+         id        TYPE ztpers_asa-id,
+       END OF tys_eli,
+
+       BEGIN OF tys_val,
+         id TYPE ztpers_asa-id,
+       END OF tys_val,
+
+       BEGIN OF tys_vista_rapida,
+          nombre        TYPE ztpers_asa-nombres,
+          apellidos     TYPE ztpers_asa-apellidos,
+          cedula        TYPE ztpers_asa-cedula,
+          telefono      TYPE ztpers_asa-telefono,
+          fecha_nacimiento TYPE ztpers_asa-fecha_nacimiento,
+          genero        TYPE ztpers_asa-genero,
+       END OF tys_vista_rapida,
+
+       BEGIN OF tys_captura_datos,
+         telefono          TYPE ztpers_asa-telefono,
+         semanas_cotizadas TYPE ztpers_asa-semanas_cotizadas,
+         valor_semana      TYPE ztpers_asa-valor_semana,
+         id                TYPE ztpers_asa-id,
+       END OF tys_captura_datos,
+
+       tyt_alv        TYPE STANDARD TABLE OF tys_alv    WITH DEFAULT KEY,
+       tyt_cotizacion TYPE STANDARD TABLE OF ztpers_asa WITH DEFAULT KEY,
+       tyr_id         TYPE RANGE OF ztpers_asa-id,
+       ty_nombre      TYPE ztpers_asa-nombres,
+       tyt_eli        TYPE STANDARD TABLE OF tys_eli    WITH DEFAULT KEY,
+       tyt_val        TYPE STANDARD TABLE OF tys_val    WITH DEFAULT KEY,
+       tyt_act        TYPE STANDARD TABLE OF tys_alv    WITH DEFAULT KEY.
+
+DATA gt_excel               TYPE ztt_carga_cotizacion.
+DATA gv_id                  TYPE id.
+DATA gv_nombre              TYPE ty_nombre.
+DATA gt_cotizacion          TYPE tyt_cotizacion.
+DATA gt_alv                 TYPE tyt_alv.
+DATA gv_ok                  TYPE sy-ucomm.
+DATA go_alv                 TYPE REF TO cl_gui_alv_grid.
+DATA go_container           TYPE REF TO cl_gui_custom_container.
+DATA gt_val                 TYPE tyt_val.
+DATA gv_count               TYPE char1.
+DATA gt_act                 TYPE tyt_act.
+DATA gs_act                 TYPE tys_alv.
+DATA gs_actualiza_datos     TYPE tys_captura_datos.
+DATA ok_code                TYPE sy-ucomm.
+DATA: id_input         TYPE ztpers_asa-id,
+      cedula_input     TYPE ztpers_asa-cedula,
+      nombres_input    TYPE ztpers_asa-nombres,
+      apellidos_input  TYPE ztpers_asa-apellidos,
+      telefono_intput  TYPE ztpers_asa-telefono,
+      sociedad_input   TYPE ztpers_asa-sociedad,
+      semanas_input    TYPE ztpers_asa-semanas_cotizadas,
+      valor_sem_input  TYPE ztpers_asa-valor_semana,
+      fecha_naci_input TYPE ztpers_asa-fecha_nacimiento,
+      genero_input     TYPE ztpers_asa-genero.
+DATA: gs_cliente       TYPE tys_vista_rapida.
+
+
+
+Fin de INCLUDE ZCONTROL_COTIZACION_TOP.
+--------------------------------------------------------------
+
+
+*&---------------------------------------------------------------------*
+*& Include          ZCONTROL_COTIZACION_S01
+*&---------------------------------------------------------------------*
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-000.
+  PARAMETERS : rb_vis RADIOBUTTON GROUP gen DEFAULT 'X' USER-COMMAND process_type,
+               rb_cag RADIOBUTTON GROUP gen,
+               rb_con RADIOBUTTON GROUP gen,
+               rb_eli RADIOBUTTON GROUP gen,
+               rb_act RADIOBUTTON GROUP gen.
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-001.
+  PARAMETERS:  p_file TYPE rlgrap-filename MODIF ID arc.
+SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE TEXT-003.
+  SELECT-OPTIONS:  s_id FOR gv_id MODIF ID con MATCHCODE OBJECT ZAYUDA_BUSQUEDA_PERSONAS_ID.
+SELECTION-SCREEN END OF BLOCK b3.
+
+SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME TITLE TEXT-015.
+  PARAMETERS:     p_nombre TYPE ty_nombre MODIF ID eli.
+  SELECT-OPTIONS: s_el FOR gv_id MODIF ID eli MATCHCODE OBJECT ZAYUDA_BUSQUEDA_PERSONAS_ID.
+SELECTION-SCREEN END OF BLOCK b4.
+
+SELECTION-SCREEN BEGIN OF BLOCK b5 WITH FRAME TITLE TEXT-019.
+  PARAMETERS: p_id TYPE id MODIF ID upd MATCHCODE OBJECT ZAYUDA_BUSQUEDA_PERSONAS_ID.
+SELECTION-SCREEN END OF BLOCK b5.
+
+SELECTION-SCREEN BEGIN OF BLOCK b6 WITH FRAME TITLE TEXT-080.
+  PARAMETERS: p_vid TYPE id MODIF ID vr MATCHCODE OBJECT ZAYUDA_BUSQUEDA_PERSONAS_ID.
+SELECTION-SCREEN END OF BLOCK b6.
+
+
+
+Fin de INCLUDE ZCONTROL_COTIZACION_S01.
+---------------------------------------------------------
+
+
+*&---------------------------------------------------------------------*
+*& Include          ZCONTROL_COTIZACION_F01
+*&---------------------------------------------------------------------*
+
+FORM ayuda_de_busqueda CHANGING cv_path TYPE rlgrap-filename.
+
+  DATA lt_file_table TYPE filetable.
+  DATA lv_rc TYPE i.
+
+
+  cl_gui_frontend_services=>file_open_dialog( CHANGING   file_table              = lt_file_table
+                                                         rc                      = lv_rc
+                                              EXCEPTIONS file_open_dialog_failed = 1
+                                                         cntl_error              = 2
+                                                         error_no_gui            = 3
+                                                         not_supported_by_gui    = 4
+                                                         OTHERS                  = 5 ).
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+      WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+
+  ENDIF.
+
+  TRY.
+      cv_path = lt_file_table[ 1 ]-filename.
+    CATCH cx_sy_itab_line_not_found.
+      REFRESH lt_file_table.
+  ENDTRY.
+
+ENDFORM.
+
+
+FORM radio_butoms USING iv_cag TYPE flag
+                        iv_con TYPE flag
+                        iv_eli TYPE flag
+                        iv_act TYPE flag
+                        iv_vis TYPE flag.
+  LOOP AT SCREEN.
+
+    "Manejo de bloque 001
+    IF iv_cag EQ abap_true.
+      IF screen-group1 = 'ARC'.
+        screen-active = 1.
+      ENDIF.
+    ELSE.
+      IF screen-group1 = 'ARC'.
+        screen-active = 0.
+      ENDIF.
+    ENDIF.
+
+    "Manejo de bloque 002
+    IF iv_con EQ abap_true.
+      IF screen-group1 = 'CON'.
+        screen-active = 1.
+      ENDIF.
+    ELSE.
+      IF screen-group1 = 'CON'.
+        screen-active = 0.
+      ENDIF.
+    ENDIF.
+
+    "Manejo bloque 015
+    IF iv_eli EQ abap_true.
+      IF screen-group1 = 'ELI'.
+        screen-active = 1.
+      ENDIF.
+    ELSE.
+      IF screen-group1 = 'ELI'.
+        screen-active = 0.
+      ENDIF.
+    ENDIF.
+
+    "Manejo bloque b5
+    IF iv_act EQ abap_true.
+      IF screen-group1 = 'UPD'.
+        screen-active = 1.
+      ENDIF.
+    ELSE.
+      IF screen-group1 = 'UPD'.
+        screen-active = 0.
+      ENDIF.
+    ENDIF.
+
+    "Manejo bloque b6
+    IF iv_vis EQ abap_true.
+      IF screen-group1 = 'VR'.
+        screen-active = 1.
+      ENDIF.
+    ELSE.
+      IF screen-group1 = 'VR'.
+        screen-active = 0.
+      ENDIF.
+    ENDIF.
+
+    MODIFY SCREEN.
+  ENDLOOP.
+ENDFORM.
+
+
+
+FORM cargar_excel USING iv_path  TYPE rlgrap-filename
+                  CHANGING ct_excel TYPE ztt_carga_cotizacion.
+
+
+  DATA lt_intern TYPE STANDARD TABLE OF alsmex_tabline.
+  DATA ls_datos TYPE zes_carga_cotizacion.
+  DATA lv_column TYPE i.
+
+  FIELD-SYMBOLS: <lv_field> TYPE any,
+                 <ls_line>  TYPE alsmex_tabline.
+
+  CALL FUNCTION 'ALSM_EXCEL_TO_INTERNAL_TABLE'
+    EXPORTING
+      filename                = iv_path
+      i_begin_col             = 1
+      i_begin_row             = 2
+      i_end_col               = 11
+      i_end_row               = 2000
+    TABLES
+      intern                  = lt_intern
+    EXCEPTIONS
+      inconsistent_parameters = 1
+      upload_ole              = 2
+      OTHERS                  = 3.
+  IF sy-subrc EQ 0.
+
+    LOOP AT lt_intern ASSIGNING <ls_line>.
+      lv_column = 1 + lv_column.
+      ASSIGN COMPONENT lv_column OF STRUCTURE ls_datos TO <lv_field>.
+      IF <lv_field>  IS ASSIGNED.
+        <lv_field> = <ls_line>-value.
+      ENDIF.
+
+      AT END OF row.
+        APPEND ls_datos TO ct_excel.
+        CLEAR : ls_datos,  lv_column.
+      ENDAT.
+
+    ENDLOOP.
+
+
+  ENDIF.
+ENDFORM.
+
+FORM mapear_datos_tabla USING it_excel         TYPE ztt_carga_cotizacion
+                        CHANGING ct_cotizacion TYPE tyt_cotizacion.
+
+  FIELD-SYMBOLS: <ls_excel>      TYPE zes_carga_cotizacion,
+                 <ls_cotizacion> TYPE ztpers_asa.
+
+  LOOP AT it_excel ASSIGNING <ls_excel>.
+
+    APPEND INITIAL LINE TO ct_cotizacion ASSIGNING <ls_cotizacion>.
+    <ls_cotizacion>-mandt = sy-mandt.
+    <ls_cotizacion>-apellidos = <ls_excel>-apellidos.
+    <ls_cotizacion>-cedula = <ls_excel>-cedula.
+    CONCATENATE <ls_excel>-fecha_nacimiento+6(4) <ls_excel>-fecha_nacimiento+3(2) <ls_excel>-fecha_nacimiento(2)
+                INTO <ls_cotizacion>-fecha_nacimiento.
+    <ls_cotizacion>-genero = <ls_excel>-genero.
+    <ls_cotizacion>-id  = <ls_excel>-id.
+    <ls_cotizacion>-nombres =  <ls_excel>-nombres.
+    <ls_cotizacion>-semanas_cotizadas = <ls_excel>-semanas_cotizadas.
+    IF <ls_excel>-sociedad IS NOT INITIAL.
+      PERFORM validar_sociedad CHANGING <ls_excel>-sociedad.
+      <ls_cotizacion>-sociedad = <ls_excel>-sociedad.
+    ENDIF.
+    <ls_cotizacion>-telefono = <ls_excel>-telefono.
+    <ls_cotizacion>-waers = <ls_excel>-waers.
+    <ls_cotizacion>-valor_semana = <ls_excel>-valor_semana.
+  ENDLOOP.
+
+ENDFORM.
+FORM cargar_datos_tabla USING it_cotizacion TYPE tyt_cotizacion.
+
+  IF it_cotizacion[] IS NOT INITIAL.
+    MODIFY ztpers_asa FROM TABLE it_cotizacion.
+    IF sy-subrc EQ 0.
+      MESSAGE TEXT-002 TYPE 'I'.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+
+FORM validar_sociedad  CHANGING cv_bukrs TYPE t001-bukrs.
+
+  DATA lv_bukrs TYPE t001-bukrs.
+
+  SELECT SINGLE bukrs
+     INTO lv_bukrs
+      FROM t001
+      WHERE bukrs = cv_bukrs.
+
+  IF sy-subrc NE 0.
+    CLEAR cv_bukrs.
+  ENDIF.
+
+
+ENDFORM.
+
+
+FORM consultar_datos USING ir_id TYPE tyr_id
+                     CHANGING ct_alv TYPE tyt_alv.
+
+  SELECT  id
+          cedula
+          nombres
+          apellidos
+          telefono
+          sociedad
+          semanas_cotizadas
+          valor_semana
+          fecha_nacimiento
+          genero
+   INTO TABLE ct_alv
+    FROM ztpers_asa
+    WHERE id IN ir_id.
+
+    LOOP AT ct_alv INTO DATA(ls_fila).
+      DATA(lv_fecha_out) = ls_fila-fecha_nacimiento.
+      CONCATENATE lv_fecha_out+6(2) lv_fecha_out+4(2) lv_fecha_out(4) INTO ls_fila-fecha_nacimiento.
+      MODIFY ct_alv FROM ls_fila.
+
+    ENDLOOP.
+
+ENDFORM.
+
+FORM crear_catalog CHANGING ct_catalogo TYPE lvc_t_fcat.
+
+
+  DATA ls_fcat TYPE lvc_s_fcat.
+
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname    = 'ID'.
+  ls_fcat-outputlen    = '8'.
+  ls_fcat-scrtext_l    = TEXT-004.
+  ls_fcat-scrtext_m    = TEXT-004.
+  ls_fcat-scrtext_s    = TEXT-004.
+  ls_fcat-tabname      = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname     = 'CEDULA'.
+  ls_fcat-outputlen     = '20'.
+  ls_fcat-scrtext_l     = TEXT-005.
+  ls_fcat-scrtext_m     = TEXT-005.
+  ls_fcat-scrtext_s     = TEXT-005.
+  ls_fcat-tabname       = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname     = 'NOMBRES'.
+  ls_fcat-outputlen     = '50'.
+  ls_fcat-scrtext_l     = TEXT-006.
+  ls_fcat-scrtext_m     = TEXT-006.
+  ls_fcat-scrtext_s     = TEXT-006.
+  ls_fcat-tabname       = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname     = 'APELLIDOS'.
+  ls_fcat-outputlen     = '50'.
+  ls_fcat-scrtext_l     = TEXT-007.
+  ls_fcat-scrtext_m     = TEXT-007.
+  ls_fcat-scrtext_s     = TEXT-007.
+  ls_fcat-tabname       = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname     = 'TELEFONO'.
+  ls_fcat-outputlen     = '10'.
+  ls_fcat-scrtext_l     = TEXT-008.
+  ls_fcat-scrtext_m     = TEXT-008.
+  ls_fcat-scrtext_s     = TEXT-008.
+  ls_fcat-tabname       = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname     = 'SOCIEDAD'.
+  ls_fcat-outputlen     = '4'.
+  ls_fcat-scrtext_l     = TEXT-009.
+  ls_fcat-scrtext_m     = TEXT-009.
+  ls_fcat-scrtext_s     = TEXT-009.
+  ls_fcat-tabname       = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname     = 'SEMANAS_COTIZADAS'.
+  ls_fcat-outputlen     = '5'.
+  ls_fcat-scrtext_l     = TEXT-010.
+  ls_fcat-scrtext_m     = TEXT-010.
+  ls_fcat-scrtext_s     = TEXT-016.
+  ls_fcat-tabname       = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname     = 'VALOR_SEMANA'.
+  ls_fcat-outputlen     = '23'.
+  ls_fcat-scrtext_l     = TEXT-011.
+  ls_fcat-scrtext_m     = TEXT-011.
+  ls_fcat-scrtext_s     = TEXT-017.
+  ls_fcat-tabname       = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname     = 'FECHA_NACIMIENTO'.
+  ls_fcat-datatype      = 'DATS'.
+  ls_fcat-outputlen     = '20'.
+  ls_fcat-edit_mask     = '__.__.____'.
+  ls_fcat-scrtext_l     = TEXT-012.
+  ls_fcat-scrtext_m     = TEXT-012.
+  ls_fcat-scrtext_s     = TEXT-018.
+  ls_fcat-tabname       = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+  CLEAR:ls_fcat.
+  ls_fcat-fieldname     = 'GENERO'.
+  ls_fcat-outputlen     = 8.
+  ls_fcat-scrtext_l     = TEXT-013.
+  ls_fcat-scrtext_m     = TEXT-013.
+  ls_fcat-scrtext_s     = TEXT-013.
+  ls_fcat-tabname       = 'GT_ALV'.
+  APPEND ls_fcat TO ct_catalogo.
+
+ENDFORM.
+
+FORM alv_grid CHANGING ct_alv TYPE tyt_alv.
+
+  CONSTANTS lc_container TYPE c LENGTH 7 VALUE 'CC_COTI'.
+
+  DATA ls_layout   TYPE lvc_s_layo.
+  DATA lt_catalog  TYPE lvc_t_fcat.
+
+  IF go_container IS INITIAL.
+    CREATE OBJECT go_container
+      EXPORTING
+        container_name              = lc_container
+      EXCEPTIONS
+        cntl_error                  = 1
+        cntl_system_error           = 2
+        create_error                = 3
+        lifetime_error              = 4
+        lifetime_dynpro_dynpro_link = 5
+        OTHERS                      = 6.
+    IF sy-subrc EQ 0.
+
+      IF go_alv IS INITIAL.
+
+        CREATE OBJECT go_alv
+          EXPORTING
+            i_parent          = go_container
+          EXCEPTIONS
+            error_cntl_create = 1
+            error_cntl_init   = 2
+            error_cntl_link   = 3
+            error_dp_create   = 4
+            OTHERS            = 5.
+        IF go_alv IS   NOT INITIAL.
+          ls_layout-zebra = abap_true.
+          ls_layout-cwidth_opt = abap_true.
+          PERFORM crear_catalog CHANGING lt_catalog.
+
+          go_alv->set_table_for_first_display(
+            EXPORTING
+              is_layout                     = ls_layout
+            CHANGING
+              it_outtab                     = ct_alv
+              it_fieldcatalog               = lt_catalog
+            EXCEPTIONS
+              invalid_parameter_combination = 1
+              program_error                 = 2
+              too_many_lines                = 3
+              OTHERS                        = 4
+          ).
+          IF sy-subrc <> 0.
+            MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+
+
+FORM ayuda_de_busqueda_eliminar CHANGING gv_nombre TYPE ty_nombre.
+
+  DATA tyt_eli              TYPE TABLE OF tys_eli.
+  DATA it_ret_values        TYPE STANDARD TABLE OF ddshretval.
+  FIELD-SYMBOLS <fs_rval>   TYPE ddshretval.
+  DATA ls_eli               TYPE tys_eli.
+
+
+  REFRESH: it_ret_values.
+
+  SELECT
+          nombres
+          apellidos
+          id
+      INTO TABLE tyt_eli
+      FROM ztpers_asa.
+
+  LOOP AT tyt_eli INTO ls_eli.
+    SHIFT ls_eli-id LEFT DELETING LEADING '0'.
+    MODIFY tyt_eli FROM ls_eli.
+  ENDLOOP.
+
+
+  IF sy-subrc = 0.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'NOMBRES'
+        window_title    = 'NOMBRES'
+        value_org       = 'S'
+      TABLES
+        value_tab       = tyt_eli
+        return_tab      = it_ret_values
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ELSE.
+      READ TABLE it_ret_values ASSIGNING <fs_rval> INDEX 1.
+      IF sy-subrc = 0.
+        gv_nombre = <fs_rval>-fieldval.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+
+FORM validar_nombre USING gv_nombre TYPE ty_nombre
+                    CHANGING gv_count TYPE char1.
+
+  DATA lit_nombre TYPE TABLE OF ty_nombre.
+
+  SELECT nombres
+    FROM ztpers_asa
+    INTO TABLE lit_nombre
+    WHERE nombres = gv_nombre.
+
+  DESCRIBE TABLE lit_nombre LINES DATA(lv_count).
+
+  gv_count = lv_count.
+
+ENDFORM.
+
+FORM eliminar_registro_nombre USING gv_nombre TYPE ty_nombre.
+
+  DATA: lv_answer        TYPE char1,
+        lv_defaultoption TYPE string VALUE 'Y',
+        lv_objectvalue   TYPE string,
+        lv_text_before   TYPE string,
+        lv_text_after    TYPE string,
+        lv_titel         TYPE string.
+
+  lv_text_before    = '¿Está seguro de que desea eliminar a '.
+  lv_titel          = 'Confirmación de eliminación de registro.'.
+  lv_text_after     = ' de la base de datos?'.
+  lv_objectvalue    = gv_nombre.
+
+  CALL FUNCTION 'POPUP_TO_CONFIRM_WITH_VALUE'
+    EXPORTING
+      defaultoption  = lv_defaultoption         " Posicionamiento del cursor sobre Sí o No
+      objectvalue    = lv_objectvalue           " Valor del objeto a procesar
+      text_before    = lv_text_before           " Texto visualizado antes de OBJECTVALUE
+      text_after     = lv_text_after
+      titel          = lv_titel                 " línea cabecera de ventana diálogo
+      start_column   = 25                       " Columna inicial de ventana diálogo
+      start_row      = 6                        " Línea inicial de ventana diálogo
+      cancel_display = 'X'
+    IMPORTING
+      answer         = lv_answer                " Respuesta seleccionada del usuario
+    EXCEPTIONS
+      text_too_long  = 1                        " texto supera 70 dígitos
+      OTHERS         = 2.
+
+  IF lv_answer = 'J'.
+
+    DELETE FROM ztpers_asa WHERE nombres = gv_nombre.
+    MESSAGE TEXT-062 TYPE 'I'.
+
+  ELSE.
+    MESSAGE TEXT-063 TYPE 'I'.
+
+  ENDIF.
+
+ENDFORM.
+
+FORM validar_idr USING irv_id TYPE tyr_id
+                CHANGING gt_val TYPE tyt_val.
+
+  SELECT id
+    INTO TABLE gt_val
+    FROM ztpers_asa
+    WHERE id IN irv_id.
+
+  IF gt_val IS INITIAL.
+    MESSAGE TEXT-064 TYPE 'I'.
+    RETURN.
+
+  ENDIF.
+
+ENDFORM.
+
+FORM eliminar_por_id USING irv_id TYPE tyr_id
+                           gt_val TYPE tyt_val.
+
+  DATA: lv_answer        TYPE char1,
+        lv_defaultoption TYPE string VALUE 'Y',
+        lv_objectvalue   TYPE string,
+        lv_text_before   TYPE string,
+        lv_text_after    TYPE string,
+        lv_titel         TYPE string,
+        lv_count         TYPE i.
+
+  lv_text_before    = '¿Desea eliminar '.
+  lv_titel          = 'Confirmación de eliminación de registros.'.
+  lv_text_after     = ' registros?'.
+
+  DESCRIBE TABLE gt_val LINES lv_count.
+  lv_objectvalue = lv_count.
+
+  CALL FUNCTION 'POPUP_TO_CONFIRM_WITH_VALUE'
+    EXPORTING
+      defaultoption  = lv_defaultoption         " Posicionamiento del cursor sobre Sí o No
+      objectvalue    = lv_objectvalue          " Valor del objeto a procesar
+      text_before    = lv_text_before           " Texto visualizado antes de OBJECTVALUE
+      text_after     = lv_text_after
+      titel          = lv_titel                 " línea cabecera de ventana diálogo
+      start_column   = 25                       " Columna inicial de ventana diálogo 25
+      start_row      = 16                        " Línea inicial de ventana diálogo 6
+      cancel_display = 'X'
+    IMPORTING
+      answer         = lv_answer                " Respuesta seleccionada del usuario
+    EXCEPTIONS
+      text_too_long  = 1                        " texto supera 70 dígitos
+      OTHERS         = 2.
+  IF lv_answer = 'J'.
+    DELETE FROM ztpers_asa WHERE id IN irv_id.
+    MESSAGE TEXT-062 TYPE 'I'.
+
+  ELSE.
+    MESSAGE TEXT-063 TYPE 'I'.
+
+  ENDIF.
+
+ENDFORM.
+
+FORM valdr_id_actuali USING cv_id TYPE ztpers_asa-id
+                      CHANGING ct_act TYPE tyt_act.
+
+  SELECT id
+         cedula
+         nombres
+         apellidos
+         telefono
+         sociedad
+         semanas_cotizadas
+         valor_semana
+         fecha_nacimiento
+         genero
+    INTO TABLE ct_act
+    FROM ztpers_asa
+    WHERE id = cv_id.
+
+  IF ct_act IS INITIAL.
+    MESSAGE TEXT-064 TYPE 'I'.
+  ENDIF.
+ENDFORM.
+
+FORM asignar_valores_dynpro USING gt_act TYPE tyt_act.
+
+  READ TABLE gt_act INTO gs_act INDEX 1.
+
+  id_input          = gs_act-id.
+  cedula_input      = gs_act-cedula.
+  nombres_input     = gs_act-nombres.
+  apellidos_input   = gs_act-apellidos.
+  telefono_intput   = gs_act-telefono.
+  sociedad_input    = gs_act-sociedad.
+  semanas_input     = gs_act-semanas_cotizadas.
+  valor_sem_input   = gs_act-valor_semana.
+  fecha_naci_input  = gs_act-fecha_nacimiento.
+  genero_input      = gs_act-genero.
+
+ENDFORM.
+
+FORM capturar_datos CHANGING gs_actualiza_datos TYPE tys_captura_datos.
+
+  gs_actualiza_datos-id                  = id_input.
+  gs_actualiza_datos-telefono            = telefono_intput.
+  gs_actualiza_datos-semanas_cotizadas   = semanas_input.
+  gs_actualiza_datos-valor_semana        = valor_sem_input.
+
+
+ENDFORM.
+
+FORM actualizar_datos USING gs_actualiza_datos TYPE tys_captura_datos.
+
+  IF gs_actualiza_datos IS NOT INITIAL.
+    UPDATE ztpers_asa
+      SET telefono          = @gs_actualiza_datos-telefono,
+          semanas_cotizadas = @gs_actualiza_datos-semanas_cotizadas,
+          valor_semana      = @gs_actualiza_datos-valor_semana
+      WHERE id = @gs_actualiza_datos-id.
+    IF sy-subrc = 0.
+      MESSAGE TEXT-061 TYPE 'I'.
+    ELSE.
+      MESSAGE TEXT-060 TYPE 'i'.
+      LEAVE TO SCREEN '0'.
+    ENDIF.
+
+  ENDIF.
+
+
+ENDFORM.
+
+FORM vista_rapida_individual USING p_vid.
+
+ SELECT SINGLE  nombres
+                apellidos
+                cedula
+                telefono
+                fecha_nacimiento
+                genero
+   FROM ztpers_asa
+   INTO gs_cliente
+   WHERE id = p_vid.
+
+   IF gs_cliente IS NOT INITIAL.
+
+     DATA: lv_nombre     TYPE ztpers_asa-nombres,
+           lv_apellido   TYPE ztpers_asa-apellidos,
+           lv_cedula     TYPE ztpers_asa-cedula,
+           lv_telefono   TYPE ztpers_asa-telefono,
+           lv_fecha_naci TYPE ztpers_asa-fecha_nacimiento,
+           lv_genero     TYPE ztpers_asa-genero.
+
+*     lv_nombre = gs_cliente-nombre.
+*     lv_apellido = gs_cliente-apellidos.
+     lv_cedula = gs_cliente-cedula.
+     lv_telefono = gs_cliente-telefono.
+     lv_fecha_naci = gs_cliente-fecha_nacimiento.
+     lv_genero = gs_cliente-genero.
+
+     CALL FUNCTION 'ZCONTROL_COTI_INFOCLIENTE'
+       EXPORTING
+         nombres          = gs_cliente-nombre                 " Información de cliente propia
+         apellidos        = gs_cliente-apellidos
+         cedula           = lv_cedula                 " Información de cliente propia
+         telefono         = lv_telefono                 " Entero con signo de 4 bytes
+         fecha_nacimiento = lv_fecha_naci                 " Fecha con formato CHAR
+         genero           = lv_genero                 " TIPO DE GENERO
+       .
+
+   ELSE.
+     MESSAGE TEXT-064 TYPE 'I'.
+   ENDIF.
+
+ENDFORM.
+
+FORM main  USING iv_cargar     TYPE flag
+                 iv_consultar  TYPE flag
+                 iv_eliminar   TYPE flag
+                 iv_actualizar TYPE flag
+                 iv_vistarapi  TYPE flag
+                 iv_path       TYPE rlgrap-filename
+                 ir_id         TYPE tyr_id
+                 gv_nombre     TYPE ty_nombre
+                 irv_id        TYPE tyr_id
+                 cv_id         TYPE ztpers_asa-id.
+
+
+
+  IF iv_cargar EQ abap_true.    "Validar
+    IF iv_path  IS INITIAL .
+      MESSAGE TEXT-065 TYPE 'I'.
+      RETURN.
+
+    ENDIF.
+
+    PERFORM cargar_excel USING iv_path
+                          CHANGING gt_excel.
+
+    IF gt_excel IS INITIAL.     "validar
+      MESSAGE TEXT-066 TYPE 'I'.
+      RETURN.
+    ENDIF.
+
+    PERFORM mapear_datos_tabla USING gt_excel
+                               CHANGING gt_cotizacion.
+
+    PERFORM cargar_datos_tabla USING gt_cotizacion.
+
+  ENDIF.
+
+
+  IF  iv_consultar  EQ abap_true.
+
+    IF s_id[] IS INITIAL.
+      MESSAGE TEXT-067 TYPE 'I'.
+      RETURN.
+    ELSE.
+      PERFORM consultar_datos USING ir_id
+                              CHANGING gt_alv.
+
+      IF gt_alv IS INITIAL.       "Validar
+        MESSAGE TEXT-068 TYPE 'I'.
+        RETURN.
+      ENDIF.
+      PERFORM alv_grid  CHANGING gt_alv.
+
+      CALL SCREEN '0001'.
+    ENDIF.
+  ENDIF.
+
+
+  IF iv_eliminar EQ abap_true.
+
+    IF p_nombre IS INITIAL AND s_el[] IS INITIAL.
+      MESSAGE TEXT-069 TYPE 'I'.
+      RETURN.
+     ELSE.
+
+      IF p_nombre IS NOT INITIAL AND s_el[] IS NOT INITIAL.
+        MESSAGE TEXT-070 TYPE 'I'.
+        RETURN.
+      ENDIF.
+
+      IF p_nombre IS NOT INITIAL.
+        PERFORM validar_nombre USING p_nombre
+                               CHANGING gv_count.
+
+        CASE gv_count.
+          WHEN '1'.
+            PERFORM eliminar_registro_nombre USING p_nombre.
+          WHEN '0'.
+            MESSAGE TEXT-071 TYPE 'I'.
+            RETURN.
+          WHEN OTHERS.
+            MESSAGE TEXT-072 TYPE 'I'.
+            RETURN.
+        ENDCASE.
+
+    ELSE.
+      IF s_el[] IS INITIAL.
+        MESSAGE TEXT-073 TYPE 'I'.
+      ELSE.
+        PERFORM validar_idr USING irv_id
+                          CHANGING gt_val.
+      ENDIF.
+      IF gt_val IS NOT INITIAL.
+        PERFORM eliminar_por_id USING irv_id
+                                      gt_val.
+
+      ENDIF.
+    ENDIF.
+   ENDIF.
+ENDIF.
+
+IF iv_actualizar EQ abap_true.
+  IF p_id IS INITIAL.
+    MESSAGE TEXT-074 TYPE 'I'.
+  ELSE.
+    PERFORM valdr_id_actuali USING p_id
+                             CHANGING gt_act.
+    IF gt_act IS NOT INITIAL.
+      CALL SCREEN '0002'.
+    ENDIF.
+  ENDIF.
+ENDIF.
+
+IF iv_vistarapi EQ abap_true.
+  IF p_vid IS INITIAL.
+    MESSAGE TEXT-074 TYPE 'I'.
+  ELSE.
+    PERFORM vista_rapida_individual USING p_vid.
+  ENDIF.
+
+
+ENDIF.
+
+ENDFORM.
+
+
+
+Fin de INCLUDE ZCONTROL_COTIZACION_F01.
+---------------------------------------------------------------
+
+
+*----------------------------------------------------------------------*
+***INCLUDE ZCONTROL_COTI_PBO.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Module STATUS_0001 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0001 OUTPUT.
+  SET PF-STATUS 'STATUS100'.
+  SET TITLEBAR 'COTI100'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0002 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0002 OUTPUT.
+  SET PF-STATUS 'DYNPRO ACTUALIZACIÓN'.
+  SET TITLEBAR 'ACTUALIZAR DATOS'.
+  PERFORM asignar_valores_dynpro USING gt_act.
+ENDMODULE.
+
+
+Fin de INCLUDE ZCONTROL_COTI_PBO.
+--------------------------------------------------------
+
+
+*----------------------------------------------------------------------*
+***INCLUDE ZCONTROL_COTI_PAI.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0001  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0001 INPUT.
+
+  CASE gv_ok.
+    WHEN 'BACK'.
+      LEAVE TO SCREEN 0.
+    WHEN 'EXIT'.
+      LEAVE PROGRAM.
+    WHEN 'CANCEL'.
+      LEAVE TO SCREEN 0.
+    WHEN OTHERS.
+  ENDCASE.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0002  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0002 INPUT.
+  CASE ok_code.
+    WHEN 'OK_ACT'.
+      PERFORM capturar_datos CHANGING gs_actualiza_datos.
+      IF sy-subrc = 0.
+        PERFORM actualizar_datos USING gs_actualiza_datos.
+      ENDIF.
+      IF sy-subrc EQ 0.
+        LEAVE TO SCREEN '0'.
+      ENDIF.
+    WHEN 'CANCEL_ACT'.
+      LEAVE TO SCREEN '0'.
+      RETURN.
+    WHEN OTHERS.
+  ENDCASE.
+
+ENDMODULE.
+
+
+Fin de INCLUDE ZCONTROL_COTI_PAI.
+---------------------------------------------------------------------------
+
+
+*&---------------------------------------------------------------------*
+*& Include          ZCONTROL_COTIZACION_EVENT
+*&---------------------------------------------------------------------*
+INITIALIZATION.
+
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM radio_butoms USING rb_cag rb_con rb_eli rb_act rb_vis.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
+  PERFORM ayuda_de_busqueda CHANGING p_file.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_nombre.
+  PERFORM ayuda_de_busqueda_eliminar CHANGING p_nombre.
+
+START-OF-SELECTION.
+
+  PERFORM main USING rb_cag
+                     rb_con
+                     rb_eli
+                     rb_act
+                     rb_vis
+                     p_file
+                     s_id[]
+                     p_nombre
+                     s_el[]
+                     p_id.
+
+
+Fin de ZCONTROL_COTIZACION_EVENT.
+------------------------------------------------------------------
